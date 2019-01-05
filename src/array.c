@@ -3,18 +3,20 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <string.h>
 
 /**
  *  Initializes an Array with length and capacity 0.
  *
  *  @param self Must not be NULL.
  */
-void Array_new(Array *self) {
+void Array_new(Array *self, size_t element_size) {
     assert(self);
 
-    self->data_ = NULL;
-    self->len_ = 0;
-    self->capacity_ = 0;
+    self->data = NULL;
+    self->element_size = element_size;
+    self->len = 0;
+    self->capacity = 0;
 }
 
 static void** realloc_and_move(Array *self, size_t capacity);
@@ -27,10 +29,10 @@ static void** realloc_and_move(Array *self, size_t capacity);
  *  @returns LARR_NO_MEMORY If malloc() returns NULL, otherwise
  *           LARR_OK.
  */
-ArrayError Array_with_capacity(Array *self, size_t capacity) {
+int Array_with_capacity(Array *self, size_t element_size, size_t capacity) {
     assert(self);
 
-    Array_new(self);
+    Array_new(self, element_size);
 
     if (!realloc_and_move(self, capacity)) {
         return LARR_NO_MEMORY;
@@ -48,10 +50,10 @@ ArrayError Array_with_capacity(Array *self, size_t capacity) {
 void Array_delete(Array *self) {
     assert(self);
 
-    free(self->data_);
-    self->data_ = NULL;
-    self->len_ = 0;
-    self->capacity_ = 0;
+    free(self->data);
+    self->data = NULL;
+    self->len = 0;
+    self->capacity = 0;
 }
 
 /**
@@ -61,7 +63,7 @@ void Array_delete(Array *self) {
 size_t Array_capacity(const Array *self) {
     assert(self);
 
-    return self->capacity_;
+    return self->capacity;
 }
 
 /**
@@ -71,7 +73,7 @@ size_t Array_capacity(const Array *self) {
 size_t Array_len(const Array *self) {
     assert(self);
 
-    return self->len_;
+    return self->len;
 }
 
 /**
@@ -81,7 +83,7 @@ size_t Array_len(const Array *self) {
 int Array_is_empty(const Array *self) {
     assert(self);
 
-    return (self->len_ == 0);
+    return (self->len == 0);
 }
 
 /**
@@ -89,7 +91,7 @@ int Array_is_empty(const Array *self) {
  *  @returns An immutable reference to the first element of this Array
  *           if this Array is non-empty, NULL otherwise.
  */
-const void** Array_first(const Array *self) {
+const void* Array_first(const Array *self) {
     assert(self);
 
     return Array_get(self, 0);
@@ -100,7 +102,7 @@ const void** Array_first(const Array *self) {
  *  @returns A mutable reference to the first element of this Array if
  *           this Array is non-empty, NULL otherwise.
  */
-void** Array_first_mut(Array *self) {
+void* Array_first_mut(Array *self) {
     assert(self);
 
     return Array_get_mut(self, 0);
@@ -111,10 +113,10 @@ void** Array_first_mut(Array *self) {
  *  @returns An immutable reference to the last element of this Array
  *           if this Array is non-empty, NULL otherwise.
  */
-const void** Array_last(const Array *self) {
+const void* Array_last(const Array *self) {
     assert(self);
 
-    return Array_get(self, self->len_ - 1);
+    return Array_get(self, self->len - 1);
 }
 
 /**
@@ -122,10 +124,10 @@ const void** Array_last(const Array *self) {
  *  @returns A mutable reference to the last element of this Array if
  *           this Array is non-empty, NULL otherwise.
  */
-void** Array_last_mut(Array *self) {
+void* Array_last_mut(Array *self) {
     assert(self);
 
-    return Array_get_mut(self, self->len_ - 1);
+    return Array_get_mut(self, self->len - 1);
 }
 
 /**
@@ -134,14 +136,14 @@ void** Array_last_mut(Array *self) {
  *  @returns An immutable reference to the index-th element of this
  *           Array if index is in [0, len), NULL otherwise.
  */
-const void** Array_get(const Array *self, size_t index) {
+const void* Array_get(const Array *self, size_t index) {
     assert(self);
 
-    if (index >= self->len_) {
+    if (index >= self->len) {
         return NULL;
     }
 
-    return self->data_ + index;
+    return (const char*) self->data + index * self->element_size;
 }
 
 /**
@@ -150,85 +152,92 @@ const void** Array_get(const Array *self, size_t index) {
  *  @returns A mutable reference to the index-th element of this Array
  *           if index is in [0, len), NULL otherwise.
  */
-void** Array_get_mut(Array *self, size_t index) {
+void* Array_get_mut(Array *self, size_t index) {
     assert(self);
 
-    if (index >= self->len_) {
+    if (index >= self->len) {
         return NULL;
     }
 
-    return self->data_ + index;
+    return (char*) self->data + index * self->element_size;
 }
 
 /**
- *  If this Array is full, will reallocate memory and invalidate any
- *  previously created references to elements contained in the Array.
+ *  Appends an element to the end of this Array.
+ *
+ *  If this Array is full, will reallocate memory with realloc() and
+ *  invalidate any previously created references to elements contained
+ *  in the Array.
  *
  *  @param self Must not be NULL.
- *  @param value Will be pushed onto the end of the Array.
- *  @returns NULL If realloc() returns NULL, a mutable reference to the
- *           pushed element otherwise.
+ *  @param element Will be pushed onto the end of the Array.
+ *  @returns LARR_NO_MEMORY if realloc() returns NULL, LARR_OK
+ *           otherwise.
  */
-void** Array_push(Array *self, void *value) {
+int Array_push(Array *self, const void *element) {
     assert(self);
 
-    if (!realloc_and_move(self, self->len_ + 1)) {
-        return NULL;
+    if (!realloc_and_move(self, self->len + 1)) {
+        return LARR_NO_MEMORY;
     }
 
-    self->data_[self->len_] = value;
-    ++self->len_;
+    memcpy(self->data + self->len * self->element_size, element, self->element_size);
+    ++self->len;
 
-    return self->data_ + self->len_ - 1;
+    return LARR_OK;
 }
 
 /**
+ *  Removes the last element from this Array.
+ *
  *  @param self Must not be NULL.
- *  @returns NULL If this Array is empty, a copy of the last element
- *           otherwise.
+ *  @returns LARR_OUT_OF_RANGE if this Array is empty, otherwise
+ *           LARR_OK.
  */
-void* Array_pop(Array *self) {
+int Array_pop(Array *self) {
     assert(self);
 
-    if (self->len_ == 0) {
-        return 0;
+    if (self->len == 0) {
+        return LARR_OUT_OF_RANGE;
     }
 
-    --self->len_;
+    --self->len;
 
-    return self->data_[self->len_];
+    return LARR_OK;
 }
 
 /**
  *  Move all elements in arr one index right, overwriting the last
  *  element and leaving the first element unmodified.
  */
-static void shift_right(void **arr, size_t length);
+static void shift_right(void *arr, size_t element_size, size_t length);
 
 /**
- *  Inserts an element into an Array at index. All elements at and
- *  after index are shifted right, invalidating references to them. If
- *  this Array is full, reallocates memory using realloc() and
- *  invalidates any references to elements contained in the Array.
+ *  Inserts an element into an Array at index.
+ *
+ *  All elements at and after index are shifted right, invalidating
+ *  references to them. If this Array is full, reallocates memory using
+ *  realloc() and invalidates any references to elements contained in
+ *  the Array.
  *
  *  @param self Must not be NULL.
  *  @param index Should be <= len.
  *  @param element The element to insert.
- *  @returns LARR_OK If element was inserted, LARR_OUT_OF_RANGE if
+ *  @returns LARR_OK if element was inserted, LARR_OUT_OF_RANGE if
  *           index > len, or LARR_NO_MEMORY if realloc() returns NULL.
  */
-int Array_insert(Array *self, size_t index, void *element) {
+int Array_insert(Array *self, size_t index, const void *element) {
     assert(self);
 
-    if (index > self->len_) {
+    if (index > self->len) {
         return LARR_OUT_OF_RANGE;
-    } else if (!realloc_and_move(self, self->len_ + 1)) {
+    } else if (!realloc_and_move(self, self->len + 1)) {
         return LARR_NO_MEMORY;
     }
 
-    shift_right(self->data_ + index, self->len_ - index);
-    self->data_[index] = element;
-    ++self->len_;
+    shift_right(self->data + self->element_size * index, self->element_size, self->len - index);
+    memcpy(self->data + self->element_size * index, element, self->element_size);
+    ++self->len;
 
     return LARR_OK;
 }
@@ -237,34 +246,35 @@ int Array_insert(Array *self, size_t index, void *element) {
  *  Move all elements in arr one index left, overwriting the first
  *  element and leaving the last element unmodified.
  */
-static void shift_left(void **arr, size_t length);
+static void shift_left(void *arr, size_t element_size, size_t length);
 
 /**
- *  Removes the element at index. All elements after index are shifted
- *  left, invaliding references to them.
+ *  Removes the element at index.
+ *
+ *  All elements after index are shifted left, invaliding references to
+ *  them.
  *
  *  @param self Must not be NULL.
  *  @param index Should be < len.
- *  @returns NULL If index >= len, otherwise the removed element.
+ *  @returns LARR_OUT_OF_RANGE if index >= len, otherwise LARR_OK.
  */
-void* Array_remove(Array *self, size_t index) {
+int Array_remove(Array *self, size_t index) {
     assert(self);
 
-    if (index >= self->len_) {
-        return NULL;
-    } else {
-        void *const removed = self->data_[index];
-        shift_left(self->data_ + index, self->len_ - index);
-        --self->len_;
-
-        return removed;
+    if (index >= self->len) {
+        return LARR_OUT_OF_RANGE;
     }
+
+    shift_left(self->data + self->element_size + index, self->element_size, self->len - index);
+    --self->len;
+
+    return LARR_OK;
 }
 
 void Array_clear(Array *self) {
     assert(self);
 
-    self->len_ = 0;
+    self->len = 0;
 }
 
 static size_t round_up_to_next_highest_power_of_2(size_t x);
@@ -272,18 +282,18 @@ static size_t round_up_to_next_highest_power_of_2(size_t x);
 static void** realloc_and_move(Array *self, size_t capacity) {
     assert(self);
 
-    if (self->capacity_ >= capacity) {
-        return self->data_;
+    if (self->capacity >= capacity) {
+        return self->data;
     } else {
         const size_t new_capacity = round_up_to_next_highest_power_of_2(capacity);
-        void **const new_data = (void**) realloc(self->data_, sizeof(void*) * new_capacity);
+        void *const new_data = (void*) realloc(self->data, self->element_size * new_capacity);
 
         if (!new_data) {
             return NULL;
         }
 
-        self->data_ = new_data;
-        self->capacity_ = new_capacity;
+        self->data = new_data;
+        self->capacity = new_capacity;
 
         return new_data;
     }
@@ -293,26 +303,24 @@ static void** realloc_and_move(Array *self, size_t capacity) {
  *  Move all elements in arr one index right, overwriting the last
  *  element and leaving the first element unmodified.
  */
-static void shift_right(void **arr, size_t length) {
-    size_t i = length - 1; /* grr c89 */
-    for (; i >= 1; --i) { /* weird, but avoids overflow/underflow */
-        arr[i] = arr[i - 1];
+static void shift_right(void *arr, size_t element_size, size_t length) {
+    if (length == 0 || element_size == 0) {
+        return;
     }
+
+    memmove((char*) arr + element_size, arr, (length - 1) * element_size);
 }
 
 /**
  *  Move all elements in arr one index left, overwriting the first
  *  element and leaving the last element unmodified.
  */
-static void shift_left(void **arr, size_t length) {
-    if (length == 0) { /** to avoid underflow */
+static void shift_left(void *arr, size_t element_size, size_t length) {
+    if (length == 0 || element_size == 0) {
         return;
-    } else {
-        size_t i = 0;
-        for (; i < length - 1; ++i) {
-            arr[i] = arr[i + 1];
-        }
     }
+
+    memmove((char*) arr, arr + element_size, (length - 1) * element_size);
 }
 
 /* Stanford bit twiddling hack */

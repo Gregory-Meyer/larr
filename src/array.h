@@ -8,9 +8,10 @@ extern "C" {
 #endif
 
 typedef struct Array {
-    void **data_;
-    size_t len_;
-    size_t capacity_;
+    void *data;
+    size_t element_size;
+    size_t len;
+    size_t capacity;
 } Array;
 
 typedef enum ArrayError {
@@ -23,18 +24,22 @@ typedef enum ArrayError {
  *  Initializes an Array with length and capacity 0.
  *
  *  @param self Must not be NULL.
+ *  @param element_size The stride, in bytes, between elements. Usually sizeof(T).
  */
-void Array_new(Array *self);
+void Array_new(Array *self, size_t element_size);
 
 /**
  *  Initializes an Array length 0 and at least enough space to hold
  *	capacity elements.
  *
  *  @param self Must not be NULL.
- *	@returns LARR_NO_MEMORY If malloc() returns NULL, otherwise
+ *  @param capacity The minimum number of elements that this Array will be able to hold without
+ *                  reallocating memory.
+ *  @param element_size The stride, in bytes, between elements. Usually sizeof(T).
+ *	@returns LARR_NO_MEMORY if malloc() returns NULL, otherwise
  *			 LARR_OK.
  */
-ArrayError Array_with_capacity(Array *self, size_t capacity);
+int Array_with_capacity(Array *self, size_t element_size, size_t capacity);
 
 /**
  *  Deallocates any memory owned by this Array and sets its length
@@ -67,28 +72,28 @@ int Array_is_empty(const Array *self);
  *  @returns An immutable reference to the first element of this Array
  *           if this Array is non-empty, NULL otherwise.
  */
-const void** Array_first(const Array *self);
+const void* Array_first(const Array *self);
 
 /**
  *  @param self Must not be NULL.
  *  @returns A mutable reference to the first element of this Array if
  *           this Array is non-empty, NULL otherwise.
  */
-void** Array_first_mut(Array *self);
+void* Array_first_mut(Array *self);
 
 /**
  *  @param self Must not be NULL.
  *  @returns An immutable reference to the last element of this Array
  *           if this Array is non-empty, NULL otherwise.
  */
-const void** Array_last(const Array *self);
+const void* Array_last(const Array *self);
 
 /**
  *  @param self Must not be NULL.
  *  @returns A mutable reference to the last element of this Array if
  *           this Array is non-empty, NULL otherwise.
  */
-void** Array_last_mut(Array *self);
+void* Array_last_mut(Array *self);
 
 /**
  *  @param self Must not be NULL.
@@ -96,7 +101,7 @@ void** Array_last_mut(Array *self);
  *  @returns An immutable reference to the index-th element of this
  *           Array if index is in [0, len), NULL otherwise.
  */
-const void** Array_get(const Array *self, size_t index);
+const void* Array_get(const Array *self, size_t index);
 
 /**
  *  @param self Must not be NULL.
@@ -104,50 +109,58 @@ const void** Array_get(const Array *self, size_t index);
  *  @returns A mutable reference to the index-th element of this Array
  *           if index is in [0, len), NULL otherwise.
  */
-void** Array_get_mut(Array *self, size_t index);
+void* Array_get_mut(Array *self, size_t index);
 
 /**
+ *  Appends an element to the end of this Array.
+ *
  *  If this Array is full, will reallocate memory with realloc() and
  *  invalidate any previously created references to elements contained
  *  in the Array.
  *
  *  @param self Must not be NULL.
  *  @param element Will be pushed onto the end of the Array.
- *  @returns NULL If realloc() returns NULL, a mutable reference to the
- *           pushed element otherwise.
- */
-void** Array_push(Array *self, void *element);
-
-/**
- *  @param self Must not be NULL.
- *  @returns NULL If this Array is empty, a copy of the last element
+ *  @returns LARR_NO_MEMORY if realloc() returns NULL, LARR_OK
  *           otherwise.
  */
-void* Array_pop(Array *self);
+int Array_push(Array *self, const void *element);
 
 /**
- *  Inserts an element into an Array at index. All elements at and
- *  after index are shifted right, invalidating references to them. If
- *  this Array is full, reallocates memory using realloc() and
- *  invalidates any references to elements contained in the Array.
+ *  Removes the last element from this Array.
+ *
+ *  @param self Must not be NULL.
+ *  @returns LARR_OUT_OF_RANGE if this Array is empty, otherwise
+ *           LARR_OK.
+ */
+int Array_pop(Array *self);
+
+/**
+ *  Inserts an element into an Array at index.
+ *
+ *  All elements at and after index are shifted right, invalidating
+ *  references to them. If this Array is full, reallocates memory using
+ *  realloc() and invalidates any references to elements contained in
+ *  the Array.
  *
  *  @param self Must not be NULL.
  *  @param index Should be <= len.
  *  @param element The element to insert.
- *  @returns LARR_OK If element was inserted, LARR_OUT_OF_RANGE if
+ *  @returns LARR_OK if element was inserted, LARR_OUT_OF_RANGE if
  *           index > len, or LARR_NO_MEMORY if realloc() returns NULL.
  */
-int Array_insert(Array *self, size_t index, void *element);
+int Array_insert(Array *self, size_t index, const void *element);
 
 /**
- *  Removes the element at index. All elements after index are shifted
- *  left, invaliding references to them.
+ *  Removes the element at index.
+ *
+ *  All elements after index are shifted left, invaliding references to
+ *  them.
  *
  *  @param self Must not be NULL.
  *  @param index Should be < len.
- *  @returns NULL If index >= len, otherwise the removed element.
+ *  @returns LARR_OUT_OF_RANGE if index >= len, otherwise LARR_OK.
  */
-void* Array_remove(Array *self, size_t index);
+int Array_remove(Array *self, size_t index);
 
 /**
  *  Resets the length of the Array to zero without deallocating any
