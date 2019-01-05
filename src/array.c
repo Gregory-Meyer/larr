@@ -181,7 +181,7 @@ int Array_push(Array *self, const void *element) {
         return LARR_NO_MEMORY;
     }
 
-    memcpy(self->data + self->len * self->element_size, element, self->element_size);
+    memcpy((char*) self->data + self->len * self->element_size, element, self->element_size);
     ++self->len;
 
     return LARR_OK;
@@ -235,8 +235,9 @@ int Array_insert(Array *self, size_t index, const void *element) {
         return LARR_NO_MEMORY;
     }
 
-    shift_right(self->data + self->element_size * index, self->element_size, self->len - index);
-    memcpy(self->data + self->element_size * index, element, self->element_size);
+    shift_right((char*) self->data + self->element_size * index,
+                self->element_size, self->len - index);
+    memcpy((char*) self->data + self->element_size * index, element, self->element_size);
     ++self->len;
 
     return LARR_OK;
@@ -265,7 +266,8 @@ int Array_remove(Array *self, size_t index) {
         return LARR_OUT_OF_RANGE;
     }
 
-    shift_left(self->data + self->element_size + index, self->element_size, self->len - index);
+    shift_left((char*) self->data + self->element_size + index,
+               self->element_size, self->len - index);
     --self->len;
 
     return LARR_OK;
@@ -320,7 +322,7 @@ static void shift_left(void *arr, size_t element_size, size_t length) {
         return;
     }
 
-    memmove((char*) arr, arr + element_size, (length - 1) * element_size);
+    memmove(arr, (const char*) arr + element_size, (length - 1) * element_size);
 }
 
 /* Stanford bit twiddling hack */
