@@ -1,0 +1,10 @@
+-Iinclude
+-isystem/usr/include/lua5.3
+-pedantic
+-std=c89
+-Wall
+-Wcast-qual
+-Wconversion
+-Wextra
+-Wmissing-prototypes
+-Wshadow
