@@ -1,312 +1,295 @@
 #include <larr/larr.h>
 
+#include "array.h"
+
 #include <assert.h>
-#include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 
-/**
- *  Initializes an Array with length and capacity 0.
- *
- *  @param self Must not be NULL.
- */
-void Array_new(Array *self) {
-    assert(self);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    self->data_ = NULL;
-    self->len_ = 0;
-    self->capacity_ = 0;
+#include <lauxlib.h>
+#include <luaconf.h>
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+static int larr_Array_new(lua_State *L);
+
+static int larr_Array_with_capacity(lua_State *L);
+
+static int larr_Array_meta_gc(lua_State *L);
+
+static int larr_Array_capacity(lua_State *L);
+
+static int larr_Array_meta_len(lua_State *L);
+
+static int larr_Array_is_empty(lua_State *L);
+
+static int larr_Array_first(lua_State *L);
+
+static int larr_Array_last(lua_State *L);
+
+static int larr_Array_meta_index(lua_State *L);
+
+static int larr_Array_meta_newindex(lua_State *L);
+
+static int larr_Array_push(lua_State *L);
+
+static int larr_Array_pop(lua_State *L);
+
+static int larr_Array_insert(lua_State *L);
+
+static int larr_Array_remove(lua_State *L);
+
+static int larr_Array_clear(lua_State *L);
+
+int luaopen_liblarr(lua_State *L) {
+    int registered;
+
+    assert(L);
+
+    registered = luaL_newmetatable(L, "larr.Array");
+    assert(registered);
+
+    lua_createtable(L, 0, 1);
+    lua_createtable(L, 0, 15);
+
+    lua_pushcfunction(L, larr_Array_new);
+    lua_setfield(L, -2, "new");
+
+    lua_pushcfunction(L, larr_Array_with_capacity);
+    lua_setfield(L, -2, "with_capacity");
+
+    lua_pushcfunction(L, larr_Array_meta_gc);
+    lua_setfield(L, -2, "__gc");
+
+    lua_pushcfunction(L, larr_Array_capacity);
+    lua_setfield(L, -2, "capacity");
+
+    lua_pushcfunction(L, larr_Array_meta_len);
+    lua_setfield(L, -2, "__len");
+
+    lua_pushcfunction(L, larr_Array_is_empty);
+    lua_setfield(L, -2, "is_empty");
+
+    lua_pushcfunction(L, larr_Array_first);
+    lua_setfield(L, -2, "first");
+
+    lua_pushcfunction(L, larr_Array_last);
+    lua_setfield(L, -2, "last");
+
+    lua_pushcfunction(L, larr_Array_meta_index);
+    lua_setfield(L, -2, "__index");
+
+    lua_pushcfunction(L, larr_Array_meta_newindex);
+    lua_setfield(L, -2, "__newindex");
+
+    lua_pushcfunction(L, larr_Array_push);
+    lua_setfield(L, -2, "push");
+
+    lua_pushcfunction(L, larr_Array_pop);
+    lua_setfield(L, -2, "pop");
+
+    lua_pushcfunction(L, larr_Array_insert);
+    lua_setfield(L, -2, "insert");
+
+    lua_pushcfunction(L, larr_Array_remove);
+    lua_setfield(L, -2, "remove");
+
+    lua_pushcfunction(L, larr_Array_clear);
+    lua_setfield(L, -2, "clear");
+
+    lua_setfield(L, -2, "Array");
+
+    return 1;
 }
 
-/**
- *  Deallocates any memory owned by this Array and sets its length
- *  and capacity to 0.
- *
- *  @param self Must not be NULL.
- */
-void Array_delete(Array *self) {
-    assert(self);
+static int check_arity(lua_State *L, int arity);
 
-    free(self->data_);
-    self->data_ = NULL;
-    self->len_ = 0;
-    self->capacity_ = 0;
+static int larr_Array_new(lua_State *L) {
+    Array *arr;
+
+    assert(L);
+
+    check_arity(L, 0);
+
+    arr = (Array*) lua_newuserdata(L, sizeof(Array));
+    Array_new(arr);
+    luaL_setmetatable(L, "larr.Array");
+
+    return 1;
 }
 
-/**
- *  @param self Must not be NULL.
- *  @returns The number of elements that this Array can contain.
- */
-size_t Array_capacity(const Array *self) {
-    assert(self);
+static size_t check_size_t(lua_State *L, int arg);
 
-    return self->capacity_;
-}
+static int larr_Array_with_capacity(lua_State *L) {
+    size_t capacity;
+    Array *arr;
 
-/**
- *  @param self Must not be NULL.
- *  @returns The number of elements that this Array contains.
- */
-size_t Array_len(const Array *self) {
-    assert(self);
+    assert(L);
 
-    return self->len_;
-}
+    check_arity(L, 1);
 
-/**
- *  @param self Must not be NULL.
- *  @returns Nonzero if this Array is empty, zero otherwise.
- */
-int Array_is_empty(const Array *self) {
-    assert(self);
+    capacity = check_size_t(L, 1);
+    lua_pop(L, 1);
 
-    return (self->len_ == 0);
-}
+    arr = (Array*) lua_newuserdata(L, sizeof(Array));
 
-/**
- *  @param self Must not be NULL.
- *  @returns An immutable reference to the first element of this Array
- *           if this Array is non-empty, NULL otherwise.
- */
-const void** Array_first(const Array *self) {
-    assert(self);
-
-    return Array_get(self, 0);
-}
-
-/**
- *  @param self Must not be NULL.
- *  @returns A mutable reference to the first element of this Array if
- *           this Array is non-empty, NULL otherwise.
- */
-void** Array_first_mut(Array *self) {
-    assert(self);
-
-    return Array_get_mut(self, 0);
-}
-
-/**
- *  @param self Must not be NULL.
- *  @returns An immutable reference to the last element of this Array
- *           if this Array is non-empty, NULL otherwise.
- */
-const void** Array_last(const Array *self) {
-    assert(self);
-
-    return Array_get(self, self->len_ - 1);
-}
-
-/**
- *  @param self Must not be NULL.
- *  @returns A mutable reference to the last element of this Array if
- *           this Array is non-empty, NULL otherwise.
- */
-void** Array_last_mut(Array *self) {
-    assert(self);
-
-    return Array_get_mut(self, self->len_ - 1);
-}
-
-/**
- *  @param self Must not be NULL.
- *  @param index The index of the element to get.
- *  @returns An immutable reference to the index-th element of this
- *           Array if index is in [0, len), NULL otherwise.
- */
-const void** Array_get(const Array *self, size_t index) {
-    assert(self);
-
-    if (index >= self->len_) {
-        return NULL;
+    if (Array_with_capacity(arr, (size_t) capacity) != LARR_OK) {
+        return luaL_error(L, "couldn't allocate space for %ld elements", (long) capacity);
     }
 
-    return self->data_ + index;
+    luaL_setmetatable(L, "larr.Array");
+
+    return 1;
 }
 
-/**
- *  @param self Must not be NULL.
- *  @param index The index of the element to get.
- *  @returns A mutable reference to the index-th element of this Array
- *           if index is in [0, len), NULL otherwise.
- */
-void** Array_get_mut(Array *self, size_t index) {
-    assert(self);
+static Array* check_array(lua_State *L);
 
-    if (index >= self->len_) {
-        return NULL;
+static int larr_Array_meta_gc(lua_State *L) {
+    Array *arr;
+
+    assert(L);
+
+    check_arity(L, 1);
+
+    arr = check_array(L);
+    lua_pop(L, 1);
+
+    Array_delete(arr);
+
+    return 0;
+}
+
+static void push_size_t(lua_State *L, size_t value);
+
+static int larr_Array_capacity(lua_State *L) {
+    const Array *arr;
+
+    assert(L);
+
+    check_arity(L, 1);
+
+    arr = check_array(L);
+    lua_pop(L, 1);
+
+    push_size_t(L, Array_capacity(arr));
+
+    return 1;
+}
+
+static int larr_Array_meta_len(lua_State *L) {
+    const Array *arr;
+
+    assert(L);
+
+    check_arity(L, 1);
+    arr = check_array(L);
+    lua_pop(L, 1);
+
+    push_size_t(L, Array_len(arr));
+
+    return 1;
+}
+
+static int larr_Array_is_empty(lua_State *L) {
+    const Array *arr;
+
+    assert(L);
+
+    check_arity(L, 1);
+    arr = check_array(L);
+    lua_pop(L, 1);
+
+    lua_pushboolean(L, Array_is_empty(arr));
+
+    return 1;
+}
+
+static int larr_Array_first(lua_State *L);
+
+static int larr_Array_last(lua_State *L);
+
+static int larr_Array_meta_index(lua_State *L);
+
+static int larr_Array_meta_newindex(lua_State *L);
+
+static int larr_Array_push(lua_State *L);
+
+static int larr_Array_pop(lua_State *L);
+
+static int larr_Array_insert(lua_State *L);
+
+static int larr_Array_remove(lua_State *L);
+
+static int larr_Array_clear(lua_State *L);
+
+static int check_arity(lua_State *L, int arity) {
+    int num_elements;
+
+    assert(L);
+    assert(arity >= 0);
+
+    num_elements = lua_gettop(L);
+
+    if (num_elements != arity) {
+        return luaL_error(L, "invalid number of arguments (%d)", num_elements);
     }
 
-    return self->data_ + index;
+    return arity;
 }
 
-static void** realloc_and_move(Array *self, size_t capacity);
+static Array* check_array(lua_State *L) {
+    assert(L);
 
-/**
- *  If this Array is full, will reallocate memory and invalidate any
- *  previously created references to elements contained in the Array.
- *
- *  @param self Must not be NULL.
- *  @param value Will be pushed onto the end of the Array.
- *  @returns NULL If realloc() returns NULL, a mutable reference to the
- *           pushed element otherwise.
- */
-void** Array_push(Array *self, void *value) {
-    assert(self);
+    return (Array*) luaL_checkudata(L, 1, "larr.Array");
+}
 
-    if (!realloc_and_move(self, self->len_ + 1)) {
-        return NULL;
+static int can_cast_to_size_t(int x);
+
+static size_t check_size_t(lua_State *L, int arg) {
+    lua_Integer value;
+
+    assert(L);
+
+    value = luaL_checkinteger(L, arg);
+    luaL_argcheck(L, can_cast_to_size_t(value), arg, "not representable by size_t");
+
+    return (size_t) value;
+}
+
+static int can_cast_to_Integer(size_t x);
+
+static void push_size_t(lua_State *L, size_t value) {
+    assert(L);
+
+    if (!can_cast_to_Integer(value)) {
+        luaL_error(L, "cannot represent %lu as an Integer", (unsigned long) value);
     }
 
-    self->data_[self->len_] = value;
-    ++self->len_;
-
-    return self->data_ + self->len_ - 1;
+    lua_pushinteger(L, (lua_Integer) value);
 }
 
-/**
- *  @param self Must not be NULL.
- *  @returns NULL If this Array is empty, a copy of the last element
- *           otherwise.
- */
-void* Array_pop(Array *self) {
-    assert(self);
-
-    if (self->len_ == 0) {
+static int can_cast_to_size_t(lua_Integer x) {
+    if (x < 0) {
         return 0;
     }
 
-    --self->len_;
-
-    return self->data_[self->len_];
-}
-
-/**
- *  Move all elements in arr one index right, overwriting the last
- *  element and leaving the first element unmodified.
- */
-static void shift_right(void **arr, size_t length);
-
-/**
- *  Inserts an element into an Array at index. All elements at and
- *  after index are shifted right, invalidating references to them. If
- *  this Array is full, reallocates memory using realloc() and
- *  invalidates any references to elements contained in the Array.
- *
- *  @param self Must not be NULL.
- *  @param index Should be <= len.
- *  @param element The element to insert.
- *  @returns LARR_OK If element was inserted, LARR_OUT_OF_RANGE if
- *           index > len, or LARR_NO_MEMORY if realloc() returns NULL.
- */
-int Array_insert(Array *self, size_t index, void *element) {
-    assert(self);
-
-    if (index > self->len_) {
-        return LARR_OUT_OF_RANGE;
-    } else if (!realloc_and_move(self, self->len_ + 1)) {
-        return LARR_NO_MEMORY;
-    }
-
-    shift_right(self->data_ + index, self->len_ - index);
-    self->data_[index] = element;
-    ++self->len_;
-
-    return LARR_OK;
-}
-
-/**
- *  Move all elements in arr one index left, overwriting the first
- *  element and leaving the last element unmodified.
- */
-static void shift_left(void **arr, size_t length);
-
-/**
- *  Removes the element at index. All elements after index are shifted
- *  left, invaliding references to them.
- *
- *  @param self Must not be NULL.
- *  @param index Should be < len.
- *  @returns NULL If index >= len, otherwise the removed element.
- */
-void* Array_remove(Array *self, size_t index) {
-    assert(self);
-
-    if (index >= self->len_) {
-        return NULL;
+    if (sizeof(lua_Integer) > sizeof(size_t)) {
+        return x < (lua_Integer) SIZE_MAX;
     } else {
-        void *const removed = self->data_[index];
-        shift_left(self->data_ + index, self->len_ - index);
-        --self->len_;
-
-        return removed;
+        return (size_t) x < SIZE_MAX;
     }
 }
 
-void Array_clear(Array *self) {
-    assert(self);
-
-    self->len_ = 0;
-}
-
-static size_t round_up_to_next_highest_power_of_2(size_t x);
-
-static void** realloc_and_move(Array *self, size_t capacity) {
-    assert(self);
-
-    if (self->capacity_ >= capacity) {
-        return self->data_;
+static int can_cast_to_Integer(size_t x) {
+    if (sizeof(lua_Integer) > sizeof(size_t)) {
+        return (lua_Integer) x < LUA_MAXINTEGER;
     } else {
-        const size_t new_capacity = round_up_to_next_highest_power_of_2(capacity);
-        void **const new_data = (void**) realloc(self->data_, sizeof(void*) * new_capacity);
-
-        if (!new_data) {
-            return NULL;
-        }
-
-        self->data_ = new_data;
-        self->capacity_ = new_capacity;
+        return x < (size_t) LUA_MAXINTEGER;
     }
-}
-
-/**
- *  Move all elements in arr one index right, overwriting the last
- *  element and leaving the first element unmodified.
- */
-static void shift_right(void **arr, size_t length) {
-    size_t i = length - 1; /* grr c89 */
-    for (; i >= 1; --i) { /* weird, but avoids overflow/underflow */
-        arr[i] = arr[i - 1];
-    }
-}
-
-/**
- *  Move all elements in arr one index left, overwriting the first
- *  element and leaving the last element unmodified.
- */
-static void shift_left(void **arr, size_t length) {
-    if (length == 0) { /** to avoid underflow */
-        return;
-    } else {
-        size_t i = 0;
-        for (; i < length - 1; ++i) {
-            arr[i] = arr[i + 1];
-        }
-    }
-}
-
-/* Stanford bit twiddling hack */
-static size_t round_up_to_next_highest_power_of_2(size_t x) {
-    assert(sizeof(size_t) * CHAR_BIT == 32 || sizeof(size_t) * CHAR_BIT == 64);
-
-    --x;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
-
-    if (sizeof(size_t) * CHAR_BIT == 64) {
-        x |= x >> 32;
-    }
-
-    ++x;
 }
