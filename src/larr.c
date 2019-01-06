@@ -422,6 +422,67 @@ static int append_table(TypeVec *tv, lua_State *L) {
     return 0;
 }
 
-static int append_iterator(TypeVec *v, lua_State *L) {
-    return luaL_error(L, "not yet implemented");
+static int append_iterator(TypeVec *tv, lua_State *L) {
+    int pushed_nil;
+    size_t init_len;
+
+    assert(tv);
+    assert(L);
+
+    if (lua_gettop(L) == 3) {
+        lua_pushnil(L);
+        pushed_nil = 1;
+    } else {
+        pushed_nil = 0;
+    }
+    /* Vec, function, invariant, init */
+
+    lua_pushvalue(L, 2);
+    lua_pushvalue(L, 3);
+    lua_pushvalue(L, 4);
+    /* Vec, function, invariant, init, function, invariant, init */
+
+    init_len = Vec_len(&tv->vec);
+
+    while (lua_call(L, 2, 2), !lua_isnil(L, 5)) {
+        /* Vec, function, invariant, init, next init, value */
+
+        const char *name;
+        const int res = tv->vtbl->try_push(tv, L);
+
+        if (res == PE_OK) {
+            lua_pop(L, 1);
+            /* Vec, function, invariant, init, next init */
+
+            lua_pushvalue(L, 2);
+            lua_pushvalue(L, 3);
+            /* Vec, function, invariant, init, next init, function,
+               invariant */
+
+            lua_rotate(L, 5, 2);
+            /* Vec, function, invariant, function, invariant,
+               next init */
+
+            continue;
+        }
+
+        name = luaL_typename(L, 6);
+        tv->vtbl->truncate(tv, init_len, L);
+
+        if (pushed_nil) {
+            lua_pop(L, 3);
+        } else {
+            lua_pop(L, 2);
+        }
+
+        if (res == PE_NO_MEMORY) {
+            return luaL_error(L, "out of memory");
+        } else if (res == PE_INVALID_TYPE) {
+            const char *const self_type = tv->typeinfo.name.str;
+
+            return luaL_error(L, "bad iterator type (expected %s, got %s)", self_type, name);
+        }
+    }
+
+    return 0;
 }
