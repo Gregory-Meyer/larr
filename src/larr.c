@@ -114,8 +114,6 @@ int l_Vec_is_empty(lua_State *L) {
     return 1;
 }
 
-static void push_elem(lua_State *L, const Typeinfo *tinfo, const void *elem);
-
 int l_Vec_first(lua_State *L) {
     const TypeVec *tv;
 
