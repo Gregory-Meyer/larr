@@ -366,6 +366,23 @@ int Vec_append(Vec *self, const void *other, size_t len) {
 }
 
 /**
+ *  Shortens this Vec to len elements. If len > the current length,
+ *  equivalent to Vec_clear. Performs no reallocation.
+ *
+ *  @param self Must not be NULL.
+ *  @param len The number of elements to keep.
+ */
+void Vec_truncate(Vec *self, size_t len) {
+    assert(self);
+
+    if (len >= self->len) {
+        Vec_clear(self);
+    } else {
+        self->len -= len;
+    }
+}
+
+/**
  *  Move all elements in arr one index right, overwriting the last
  *  element and leaving the first element unmodified.
  */

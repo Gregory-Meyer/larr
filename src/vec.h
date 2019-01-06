@@ -203,6 +203,15 @@ void* Vec_as_mut_ptr(Vec *self);
  */
 int Vec_append(Vec *self, const void *other, size_t len);
 
+/**
+ *	Shortens this Vec to len elements. If len > the current length,
+ *	equivalent to Vec_clear. Performs no reallocation.
+ *
+ *	@param self Must not be NULL.
+ *	@param len The number of elements to keep.
+ */
+void Vec_truncate(Vec *self, size_t len);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
