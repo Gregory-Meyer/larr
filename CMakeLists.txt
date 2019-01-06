@@ -12,5 +12,5 @@ include_directories(include/ ${LUA_INCLUDE_DIR})
 
 add_compile_definitions(LUA_USE_C89)
 
-add_library(larr SHARED src/larr.c src/array.c)
+add_library(larr SHARED src/larr.c src/util.c src/vec.c)
 target_link_libraries(larr ${LUA_LIBRARIES})

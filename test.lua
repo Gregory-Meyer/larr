@@ -1,41 +1,42 @@
 local larr = require "liblarr"
 
-local num_elements = 1 << 12
-local array = larr.Array.with_capacity('integer', num_elements)
+local num_elements = 1 << 20
+local array = larr.Vec.with_capacity('integer', num_elements)
 
-print('pushing ' .. num_elements .. ' elements to larr.Array')
+print('pushing ' .. num_elements .. ' elements to larr.Vec')
 local arr_start = os.clock()
 for i = 1, num_elements do
 	array:push(i)
 end
-print(tostring(array))
+local arr_str = tostring(array)
 local arr_end = os.clock()
 
-print(arr_end - arr_start .. 'seconds elapsed')
+print(arr_end - arr_start, 'seconds elapsed')
 
-local table = {}
+local tbl = {}
 
 print('pushing ' .. num_elements .. ' elements to table')
 local tbl_start = os.clock()
 for i = 1, num_elements do
-	table[i] = i
+	tbl[i] = i
 end
 
-io.write('[')
+local tbl_str = {'['}
 
 local first = true
-for i, v in ipairs(table) do
+for i, v in ipairs(tbl) do
 	if not first then
-		io.write(', ')
+        tbl_str[#tbl_str + 1] = ', '
 	else
 		first = false
 	end
 
-	io.write(v)
+    tbl_str[#tbl_str + 1] = tostring(v)
 end
 
-io.write(']\n')
+tbl_str[#tbl_str + 1] = ']\n'
 
+tbl_str = table.concat(tbl_str)
 local tbl_end = os.clock()
 
-print(tbl_end - tbl_start .. 'seconds elapsed')
+print(tbl_end - tbl_start, 'seconds elapsed')

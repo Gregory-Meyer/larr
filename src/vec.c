@@ -1,4 +1,4 @@
-#include "array.h"
+#include "vec.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -6,11 +6,11 @@
 #include <string.h>
 
 /**
- *  Initializes an Array with length and capacity 0.
+ *  Initializes an Vec with length and capacity 0.
  *
  *  @param self Must not be NULL.
  */
-void Array_new(Array *self, size_t element_size) {
+void Vec_new(Vec *self, size_t element_size) {
     assert(self);
 
     self->data = NULL;
@@ -19,20 +19,20 @@ void Array_new(Array *self, size_t element_size) {
     self->capacity = 0;
 }
 
-static void** realloc_and_move(Array *self, size_t capacity);
+static void** realloc_and_move(Vec *self, size_t capacity);
 
 /**
- *  Initializes an Array length 0 and at least enough space to hold
+ *  Initializes an Vec length 0 and at least enough space to hold
  *  capacity elements.
  *
  *  @param self Must not be NULL.
  *  @returns LARR_NO_MEMORY If malloc() returns NULL, otherwise
  *           LARR_OK.
  */
-int Array_with_capacity(Array *self, size_t element_size, size_t capacity) {
+int Vec_with_capacity(Vec *self, size_t element_size, size_t capacity) {
     assert(self);
 
-    Array_new(self, element_size);
+    Vec_new(self, element_size);
 
     if (!realloc_and_move(self, capacity)) {
         return LARR_NO_MEMORY;
@@ -42,12 +42,12 @@ int Array_with_capacity(Array *self, size_t element_size, size_t capacity) {
 }
 
 /**
- *  Deallocates any memory owned by this Array and sets its length
+ *  Deallocates any memory owned by this Vec and sets its length
  *  and capacity to 0.
  *
  *  @param self Must not be NULL.
  */
-void Array_delete(Array *self) {
+void Vec_delete(Vec *self) {
     assert(self);
 
     free(self->data);
@@ -58,9 +58,9 @@ void Array_delete(Array *self) {
 
 /**
  *  @param self Must not be NULL.
- *  @returns The number of elements that this Array can contain.
+ *  @returns The number of elements that this Vec can contain.
  */
-size_t Array_capacity(const Array *self) {
+size_t Vec_capacity(const Vec *self) {
     assert(self);
 
     return self->capacity;
@@ -68,9 +68,9 @@ size_t Array_capacity(const Array *self) {
 
 /**
  *  @param self Must not be NULL.
- *  @returns The number of elements that this Array contains.
+ *  @returns The number of elements that this Vec contains.
  */
-size_t Array_len(const Array *self) {
+size_t Vec_len(const Vec *self) {
     assert(self);
 
     return self->len;
@@ -78,9 +78,9 @@ size_t Array_len(const Array *self) {
 
 /**
  *  @param self Must not be NULL.
- *  @returns Nonzero if this Array is empty, zero otherwise.
+ *  @returns Nonzero if this Vec is empty, zero otherwise.
  */
-int Array_is_empty(const Array *self) {
+int Vec_is_empty(const Vec *self) {
     assert(self);
 
     return (self->len == 0);
@@ -88,55 +88,55 @@ int Array_is_empty(const Array *self) {
 
 /**
  *  @param self Must not be NULL.
- *  @returns An immutable reference to the first element of this Array
- *           if this Array is non-empty, NULL otherwise.
+ *  @returns An immutable reference to the first element of this Vec
+ *           if this Vec is non-empty, NULL otherwise.
  */
-const void* Array_first(const Array *self) {
+const void* Vec_first(const Vec *self) {
     assert(self);
 
-    return Array_get(self, 0);
+    return Vec_get(self, 0);
 }
 
 /**
  *  @param self Must not be NULL.
- *  @returns A mutable reference to the first element of this Array if
- *           this Array is non-empty, NULL otherwise.
+ *  @returns A mutable reference to the first element of this Vec if
+ *           this Vec is non-empty, NULL otherwise.
  */
-void* Array_first_mut(Array *self) {
+void* Vec_first_mut(Vec *self) {
     assert(self);
 
-    return Array_get_mut(self, 0);
+    return Vec_get_mut(self, 0);
 }
 
 /**
  *  @param self Must not be NULL.
- *  @returns An immutable reference to the last element of this Array
- *           if this Array is non-empty, NULL otherwise.
+ *  @returns An immutable reference to the last element of this Vec
+ *           if this Vec is non-empty, NULL otherwise.
  */
-const void* Array_last(const Array *self) {
+const void* Vec_last(const Vec *self) {
     assert(self);
 
-    return Array_get(self, self->len - 1);
+    return Vec_get(self, self->len - 1);
 }
 
 /**
  *  @param self Must not be NULL.
- *  @returns A mutable reference to the last element of this Array if
- *           this Array is non-empty, NULL otherwise.
+ *  @returns A mutable reference to the last element of this Vec if
+ *           this Vec is non-empty, NULL otherwise.
  */
-void* Array_last_mut(Array *self) {
+void* Vec_last_mut(Vec *self) {
     assert(self);
 
-    return Array_get_mut(self, self->len - 1);
+    return Vec_get_mut(self, self->len - 1);
 }
 
 /**
  *  @param self Must not be NULL.
  *  @param index The index of the element to get.
  *  @returns An immutable reference to the index-th element of this
- *           Array if index is in [0, len), NULL otherwise.
+ *           Vec if index is in [0, len), NULL otherwise.
  */
-const void* Array_get(const Array *self, size_t index) {
+const void* Vec_get(const Vec *self, size_t index) {
     assert(self);
 
     if (index >= self->len) {
@@ -149,10 +149,10 @@ const void* Array_get(const Array *self, size_t index) {
 /**
  *  @param self Must not be NULL.
  *  @param index The index of the element to get.
- *  @returns A mutable reference to the index-th element of this Array
+ *  @returns A mutable reference to the index-th element of this Vec
  *           if index is in [0, len), NULL otherwise.
  */
-void* Array_get_mut(Array *self, size_t index) {
+void* Vec_get_mut(Vec *self, size_t index) {
     assert(self);
 
     if (index >= self->len) {
@@ -163,18 +163,18 @@ void* Array_get_mut(Array *self, size_t index) {
 }
 
 /**
- *  Appends an element to the end of this Array.
+ *  Appends an element to the end of this Vec.
  *
- *  If this Array is full, will reallocate memory with realloc() and
+ *  If this Vec is full, will reallocate memory with realloc() and
  *  invalidate any previously created references to elements contained
- *  in the Array.
+ *  in the Vec.
  *
  *  @param self Must not be NULL.
- *  @param element Will be pushed onto the end of the Array.
+ *  @param element Will be pushed onto the end of the Vec.
  *  @returns LARR_NO_MEMORY if realloc() returns NULL, LARR_OK
  *           otherwise.
  */
-int Array_push(Array *self, const void *element) {
+int Vec_push(Vec *self, const void *element) {
     assert(self);
 
     if (!realloc_and_move(self, self->len + 1)) {
@@ -188,13 +188,13 @@ int Array_push(Array *self, const void *element) {
 }
 
 /**
- *  Removes the last element from this Array.
+ *  Removes the last element from this Vec.
  *
  *  @param self Must not be NULL.
- *  @returns LARR_OUT_OF_RANGE if this Array is empty, otherwise
+ *  @returns LARR_OUT_OF_RANGE if this Vec is empty, otherwise
  *           LARR_OK.
  */
-int Array_pop(Array *self) {
+int Vec_pop(Vec *self) {
     assert(self);
 
     if (self->len == 0) {
@@ -213,12 +213,12 @@ int Array_pop(Array *self) {
 static void shift_right(void *arr, size_t element_size, size_t length);
 
 /**
- *  Inserts an element into an Array at index.
+ *  Inserts an element into an Vec at index.
  *
  *  All elements at and after index are shifted right, invalidating
- *  references to them. If this Array is full, reallocates memory using
+ *  references to them. If this Vec is full, reallocates memory using
  *  realloc() and invalidates any references to elements contained in
- *  the Array.
+ *  the Vec.
  *
  *  @param self Must not be NULL.
  *  @param index Should be <= len.
@@ -226,7 +226,7 @@ static void shift_right(void *arr, size_t element_size, size_t length);
  *  @returns LARR_OK if element was inserted, LARR_OUT_OF_RANGE if
  *           index > len, or LARR_NO_MEMORY if realloc() returns NULL.
  */
-int Array_insert(Array *self, size_t index, const void *element) {
+int Vec_insert(Vec *self, size_t index, const void *element) {
     assert(self);
 
     if (index > self->len) {
@@ -259,7 +259,7 @@ static void shift_left(void *arr, size_t element_size, size_t length);
  *  @param index Should be < len.
  *  @returns LARR_OUT_OF_RANGE if index >= len, otherwise LARR_OK.
  */
-int Array_remove(Array *self, size_t index) {
+int Vec_remove(Vec *self, size_t index) {
     assert(self);
 
     if (index >= self->len) {
@@ -273,7 +273,7 @@ int Array_remove(Array *self, size_t index) {
     return LARR_OK;
 }
 
-void Array_clear(Array *self) {
+void Vec_clear(Vec *self) {
     assert(self);
 
     self->len = 0;
@@ -281,7 +281,7 @@ void Array_clear(Array *self) {
 
 static size_t round_up_to_next_highest_power_of_2(size_t x);
 
-static void** realloc_and_move(Array *self, size_t capacity) {
+static void** realloc_and_move(Vec *self, size_t capacity) {
     assert(self);
 
     if (self->capacity >= capacity) {
