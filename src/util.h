@@ -33,23 +33,32 @@ typedef enum Type {
     #define X(name, type, nickname, string) name,
     TYPES
     #undef X
+    TP_LENGTH
 } Type;
 
 typedef struct Typeinfo {
     int type; /* one of Type */
-    const char *name;
+    String name;
 } Typeinfo;
 
 typedef struct TypeVec TypeVec;
 
+typedef enum PushError {
+    PE_OK,
+    PE_NO_MEMORY,
+    PE_INVALID_TYPE
+} PushError;
+
 typedef struct Vtbl {
     void (*push)(TypeVec*, lua_State*);
+    int (*try_push)(TypeVec*, lua_State*);
     void (*insert)(TypeVec*, size_t, lua_State*);
     void (*clear)(TypeVec*, lua_State*);
     void (*set_elem)(TypeVec*, size_t, lua_State*);
     void (*first)(const TypeVec*, lua_State*);
     void (*last)(const TypeVec*, lua_State*);
     void (*push_elem)(const TypeVec*, size_t, lua_State*);
+    void (*truncate)(TypeVec*, size_t, lua_State*);
 } Vtbl;
 
 struct TypeVec {
@@ -66,11 +75,15 @@ void push_size_t(lua_State *L, size_t x);
 
 size_t to_size_t(lua_State *L, int arg, int *is_size_t);
 
+int String_cmp(const String *lhs, const String *rhs);
+
 Typeinfo check_typeinfo(lua_State *L, int arg);
 
 const TypeVec* check_tv(lua_State *L, int arg);
 
 TypeVec* check_tv_mut(lua_State *L, int arg);
+
+TypeVec* test_tv_mut(lua_State *L, int arg);
 
 const Vtbl* get_vtbl(int type);
 

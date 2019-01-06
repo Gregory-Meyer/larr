@@ -10,12 +10,34 @@ size_t sizeof_type_repr(int type) {
 
     switch ((Type) type) {
         TYPES
+        default: assert(0 && "invalid argument passed");
     }
 
     #undef X
 }
 
 static int can_cast_to_size_t(lua_Integer x);
+
+int String_cmp(const String *lhs, const String *rhs) {
+    size_t rlen;
+    int compare_res;
+
+    assert(lhs);
+    assert(rhs);
+
+    rlen = (lhs->len < rhs->len) ? lhs->len : rhs->len;
+    compare_res = memcmp(lhs->str, rhs->str, rlen);
+
+    if (compare_res != 0) {
+        return compare_res;
+    } else if (lhs->len < rhs->len) {
+        return -1;
+    } else if (lhs->len > rhs->len) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
 
 size_t check_size_t(lua_State *L, int arg) {
     lua_Integer value;
@@ -56,34 +78,33 @@ size_t to_size_t(lua_State *L, int arg, int *is_size_t) {
 }
 
 Typeinfo check_typeinfo(lua_State *L, int arg) {
-    #define X(name, type, nickname, string) static const char name ## _STR[] = string;
+    #define X(name, type, nickname, string) static const String name ## _STR = { string, sizeof(string) - 1 };
     TYPES
     #undef X
 
     Typeinfo typeinfo;
-    size_t length;
 
-    typeinfo.name = luaL_checklstring(L, arg, &length);
+    typeinfo.name.str = luaL_checklstring(L, arg, &typeinfo.name.len);
 
-    if (length == sizeof(TP_NUM_STR) - 1 && memcmp(typeinfo.name, TP_NUM_STR, length) == 0) {
+    if (String_cmp(&typeinfo.name, &TP_NUM_STR) == 0) {
         typeinfo.type = TP_NUM;
-    } else if (length == sizeof(TP_INT_STR) - 1 && memcmp(typeinfo.name, TP_INT_STR, length) == 0) {
+    } else if (String_cmp(&typeinfo.name, &TP_INT_STR) == 0) {
         typeinfo.type = TP_INT;
-    } else if (length == sizeof(TP_BOOL_STR) - 1 && memcmp(typeinfo.name, TP_BOOL_STR, length) == 0) {
+    } else if (String_cmp(&typeinfo.name, &TP_BOOL_STR) == 0) {
         typeinfo.type = TP_BOOL;
-    } else if (length == sizeof(TP_STR_STR) - 1 && memcmp(typeinfo.name, TP_STR_STR, length) == 0) {
+    } else if (String_cmp(&typeinfo.name, &TP_STR_STR) == 0) {
         typeinfo.type = TP_STR;
-    } else if (length == sizeof(TP_TBL_STR) - 1 && memcmp(typeinfo.name, TP_TBL_STR, length) == 0) {
+    } else if (String_cmp(&typeinfo.name, &TP_TBL_STR) == 0) {
         typeinfo.type = TP_TBL;
-    } else if (length == sizeof(TP_FN_STR) - 1 && memcmp(typeinfo.name, TP_FN_STR, length) == 0) {
+    } else if (String_cmp(&typeinfo.name, &TP_FN_STR) == 0) {
         typeinfo.type = TP_FN;
-    } else if (length == sizeof(TP_THREAD_STR) - 1
-               && memcmp(typeinfo.name, TP_THREAD_STR, length) == 0) {
+    } else if (String_cmp(&typeinfo.name, &TP_THREAD_STR) == 0) {
         typeinfo.type = TP_THREAD;
-    } else if (length == sizeof(TP_LIGHT_USERDATA_STR) - 1
-               && memcmp(typeinfo.name, TP_LIGHT_USERDATA_STR, length) == 0) {
+    } else if (String_cmp(&typeinfo.name, &TP_LIGHT_USERDATA_STR) == 0) {
         typeinfo.type = TP_LIGHT_USERDATA;
     } else {
+        (void) TP_USERDATA_STR; /* suppress unused variable warning */
+
         typeinfo.type = TP_USERDATA;
     }
 
@@ -91,11 +112,21 @@ Typeinfo check_typeinfo(lua_State *L, int arg) {
 }
 
 const TypeVec* check_tv(lua_State *L, int arg) {
+    assert(L);
+
     return (const TypeVec*) luaL_checkudata(L, arg, "larr.Vec");
 }
 
 TypeVec* check_tv_mut(lua_State *L, int arg) {
+    assert(L);
+
     return (TypeVec*) luaL_checkudata(L, arg, "larr.Vec");
+}
+
+TypeVec* test_tv_mut(lua_State *L, int arg) {
+    assert(L);
+
+    return (TypeVec*) luaL_testudata(L, arg, "larr.Vec");
 }
 
 const Vtbl* get_vtbl(int type) {
@@ -103,6 +134,7 @@ const Vtbl* get_vtbl(int type) {
 
     switch ((Type) type) {
         TYPES
+        default: assert(0 && "invalid argument passed");
     }
 
     #undef X
@@ -112,7 +144,13 @@ static void noop_clear(TypeVec *tv, lua_State*);
 
 static void unref_clear(TypeVec *tv, lua_State *L);
 
+static void simple_truncate(TypeVec *tv, size_t len, lua_State *L);
+
+static void unref_truncate(TypeVec *tv, size_t len, lua_State *L);
+
 static void num_push(TypeVec *tv, lua_State *L);
+
+static int num_try_push(TypeVec *tv, lua_State *L);
 
 static void num_insert(TypeVec *tv, size_t index, lua_State *L);
 
@@ -127,18 +165,22 @@ static void num_push_elem(const TypeVec *tv, size_t index, lua_State *L);
 const Vtbl* num_vtbl(void) {
     static const Vtbl vtbl = {
         num_push,
+        num_try_push,
         num_insert,
         noop_clear,
         num_set_elem,
         num_first,
         num_last,
-        num_push_elem
+        num_push_elem,
+        simple_truncate
     };
 
     return &vtbl;
 }
 
 static void int_push(TypeVec *tv, lua_State *L);
+
+static int int_try_push(TypeVec *tv, lua_State *L);
 
 static void int_insert(TypeVec *tv, size_t index, lua_State *L);
 
@@ -153,12 +195,14 @@ static void int_push_elem(const TypeVec *tv, size_t index, lua_State *L);
 const Vtbl* int_vtbl(void) {
     static const Vtbl vtbl = {
         int_push,
+        int_try_push,
         int_insert,
         noop_clear,
         int_set_elem,
         int_first,
         int_last,
-        int_push_elem
+        int_push_elem,
+        simple_truncate
     };
 
     return &vtbl;
@@ -195,8 +239,13 @@ const Vtbl* light_userdata_vtbl(void) {
 static void noop_clear(TypeVec *tv, lua_State *L) { }
 
 static void unref_clear(TypeVec *tv, lua_State *L) {
-    const size_t length = Vec_len(&tv->vec);
+    size_t length;
     size_t i;
+
+    assert(tv);
+    assert(L);
+
+    length = Vec_len(&tv->vec);
 
     for (i = 0; i < length; ++i) {
         const int ref = *(const int*) Vec_get(&tv->vec, i);
@@ -204,14 +253,72 @@ static void unref_clear(TypeVec *tv, lua_State *L) {
     }
 }
 
-static void num_push(TypeVec *tv, lua_State *L) {
-    lua_Number num;
+static void simple_truncate(TypeVec *tv, size_t len, lua_State *L) {
+    assert(tv);
+    assert(L);
+
+    Vec_truncate(&tv->vec, len);
+}
+
+static void unref_truncate(TypeVec *tv, size_t len, lua_State *L) {
+    size_t current_length;
 
     assert(tv);
     assert(L);
 
-    num = luaL_checknumber(L, -1);
-    Vec_push(&tv->vec, &num);
+    current_length = Vec_len(&tv->vec);
+
+    if (len >= current_length) {
+        unref_clear(tv, L);
+
+        return;
+    } else {
+        size_t i;
+
+        for (i = len; i < current_length; ++i) {
+            const int ref = *(const int*) Vec_get(&tv->vec, i);
+            luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        }
+
+        Vec_truncate(&tv->vec, len);
+    }
+}
+
+static void num_push(TypeVec *tv, lua_State *L) {
+    int res;
+
+    assert(tv);
+    assert(L);
+
+    res = num_try_push(tv, L);
+
+    if (res == PE_NO_MEMORY) {
+        luaL_error(L, "out of memory");
+    } else if (res == PE_INVALID_TYPE) {
+        const char *const type = luaL_typename(L, 2);
+
+        luaL_error(L, "bad argument #2 to 'l_Vec_push' (expected number, got %s)", type);
+    }
+}
+
+static int num_try_push(TypeVec *tv, lua_State *L) {
+    lua_Number num;
+    int is_number;
+
+    assert(tv);
+    assert(L);
+
+    num = lua_tonumberx(L, 2, &is_number);
+
+    if (!is_number) {
+        return PE_INVALID_TYPE;
+    }
+
+    if (Vec_push(&tv->vec, &num) != LARR_OK) {
+        return PE_NO_MEMORY;
+    }
+
+    return PE_OK;
 }
 
 static void num_insert(TypeVec *tv, size_t index, lua_State *L) {
@@ -221,7 +328,7 @@ static void num_insert(TypeVec *tv, size_t index, lua_State *L) {
     assert(tv);
     assert(L);
 
-    num = luaL_checkinteger(L, -1);
+    num = luaL_checknumber(L, 3);
     ret = Vec_insert(&tv->vec, index, &num);
 
     if (ret == LARR_NO_MEMORY) {
@@ -294,13 +401,40 @@ static void num_push_elem(const TypeVec *tv, size_t index, lua_State *L) {
 }
 
 static void int_push(TypeVec *tv, lua_State *L) {
-    lua_Integer integer;
+    int res;
 
     assert(tv);
     assert(L);
 
-    integer = luaL_checkinteger(L, -1);
-    Vec_push(&tv->vec, &integer);
+    res = int_try_push(tv, L);
+
+    if (res == PE_NO_MEMORY) {
+        luaL_error(L, "out of memory");
+    } else if (res == PE_INVALID_TYPE) {
+        const char *const type = luaL_typename(L, 2);
+
+        luaL_error(L, "bad argument #2 to 'l_Vec_push' (expected integer, got %s)", type);
+    }
+}
+
+static int int_try_push(TypeVec *tv, lua_State *L) {
+    lua_Integer integer;
+    int is_integer;
+
+    assert(tv);
+    assert(L);
+
+    integer = lua_tointegerx(L, 2, &is_integer);
+
+    if (!is_integer) {
+        return PE_INVALID_TYPE;
+    }
+
+    if (Vec_push(&tv->vec, &integer) != LARR_OK) {
+        return PE_NO_MEMORY;
+    }
+
+    return PE_OK;
 }
 
 static void int_insert(TypeVec *tv, size_t index, lua_State *L) {
