@@ -14,6 +14,8 @@ size_t sizeof_type_repr(int type) {
     }
 
     #undef X
+
+    return 0;
 }
 
 static int can_cast_to_size_t(lua_Integer x);
@@ -138,6 +140,8 @@ const Vtbl* get_vtbl(int type) {
     }
 
     #undef X
+
+    return NULL;
 }
 
 static void noop_clear(TypeVec *tv, lua_State*);
@@ -308,7 +312,7 @@ static int num_try_push(TypeVec *tv, lua_State *L) {
     assert(tv);
     assert(L);
 
-    num = lua_tonumberx(L, 2, &is_number);
+    num = lua_tonumberx(L, -1, &is_number);
 
     if (!is_number) {
         return PE_INVALID_TYPE;
@@ -424,7 +428,7 @@ static int int_try_push(TypeVec *tv, lua_State *L) {
     assert(tv);
     assert(L);
 
-    integer = lua_tointegerx(L, 2, &is_integer);
+    integer = lua_tointegerx(L, -1, &is_integer);
 
     if (!is_integer) {
         return PE_INVALID_TYPE;
