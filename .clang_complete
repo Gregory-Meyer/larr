@@ -1,3 +1,4 @@
+-DLUA_USE_C89
 -Iinclude
 -isystem/usr/include/lua5.3
 -pedantic
