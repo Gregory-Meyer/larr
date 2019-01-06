@@ -19,8 +19,6 @@ void Vec_new(Vec *self, size_t element_size) {
     self->capacity = 0;
 }
 
-static void** realloc_and_move(Vec *self, size_t capacity);
-
 /**
  *  Initializes an Vec length 0 and at least enough space to hold
  *  capacity elements.
@@ -34,7 +32,7 @@ int Vec_with_capacity(Vec *self, size_t element_size, size_t capacity) {
 
     Vec_new(self, element_size);
 
-    if (!realloc_and_move(self, capacity)) {
+    if (Vec_reserve(self, capacity) != LARR_OK) {
         return LARR_NO_MEMORY;
     }
 
@@ -177,7 +175,7 @@ void* Vec_get_mut(Vec *self, size_t index) {
 int Vec_push(Vec *self, const void *element) {
     assert(self);
 
-    if (!realloc_and_move(self, self->len + 1)) {
+    if (Vec_reserve(self, 1) != LARR_OK) {
         return LARR_NO_MEMORY;
     }
 
@@ -231,7 +229,7 @@ int Vec_insert(Vec *self, size_t index, const void *element) {
 
     if (index > self->len) {
         return LARR_OUT_OF_RANGE;
-    } else if (!realloc_and_move(self, self->len + 1)) {
+    } else if (Vec_reserve(self, 1) != LARR_OK) {
         return LARR_NO_MEMORY;
     }
 
@@ -273,6 +271,10 @@ int Vec_remove(Vec *self, size_t index) {
     return LARR_OK;
 }
 
+/**
+ *  Resets the length of the Vec to zero without deallocating any
+ *  memory.
+ */
 void Vec_clear(Vec *self) {
     assert(self);
 
@@ -281,23 +283,85 @@ void Vec_clear(Vec *self) {
 
 static size_t round_up_to_next_highest_power_of_2(size_t x);
 
-static void** realloc_and_move(Vec *self, size_t capacity) {
+/**
+ *  Preallocates space for at least len + additional elements. If there
+ *  isn't enough space as is, memory will be reallocated and all
+ *  existing references will be invalidated.
+ *
+ *  @param self Must not be NULL.
+ *  @param additional The minimum number of extra elements that this
+ *                    Vec should be able to push without reallocating.
+ *  @returns LARR_NO_MEMORY if realloc() returns NULL, LARR_OK
+ *           otherwise.
+ */
+int Vec_reserve(Vec *self, size_t additional) {
+    size_t requested_capacity;
+
     assert(self);
 
-    if (self->capacity >= capacity) {
-        return self->data;
+    requested_capacity = self->len + additional;
+
+    if (self->capacity >= requested_capacity) {
+        return LARR_OK;
     } else {
-        const size_t new_capacity = round_up_to_next_highest_power_of_2(capacity);
+        const size_t new_capacity = round_up_to_next_highest_power_of_2(requested_capacity);
         void *const new_data = (void*) realloc(self->data, self->element_size * new_capacity);
 
         if (!new_data) {
-            return NULL;
+            return LARR_NO_MEMORY;
         }
 
         self->data = new_data;
         self->capacity = new_capacity;
 
-        return new_data;
+        return LARR_OK;
+    }
+}
+
+/** @returns An immutable pointer to this Vec's memory buffer. */
+const void* Vec_as_ptr(const Vec *self) {
+    assert(self);
+
+    return self->data;
+}
+
+/** @returns A mutable pointer to this Vec's memory buffer. */
+void* Vec_as_mut_ptr(Vec *self) {
+    assert(self);
+
+    return self->data;
+}
+
+/**
+ *  Copies an array of elements to the end of this Vec.
+ *
+ *  If there isn't enough capacity to hold all additional elements,
+ *  memory will be reallocated and all existing references will be
+ *  invalidated.
+ *
+ *  @param self Must not be NULL.
+ *  @param other Must not be NULL. Points to memory spanning
+ *               len elements of element_size bytes each.
+ *  @param len The number of elements to copy.
+ *  @returns LARR_NO_MEMORY if realloc() returns NULL, LARR_OK
+ *           otherwise.
+ */
+int Vec_append(Vec *self, const void *other, size_t len) {
+    assert(self);
+    assert(other);
+
+    if (len == 0) {
+        return LARR_OK;
+    }
+
+    if (Vec_reserve(self, len) != LARR_OK) {
+        return LARR_NO_MEMORY;
+    } else {
+        memcpy((char*) self->data + self->len * self->element_size, other,
+               len * self->element_size);
+        self->len += len;
+
+        return LARR_OK;
     }
 }
 

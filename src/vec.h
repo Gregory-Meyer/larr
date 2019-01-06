@@ -168,6 +168,41 @@ int Vec_remove(Vec *self, size_t index);
  */
 void Vec_clear(Vec *self);
 
+/**
+ *	Preallocates space for at least len + additional elements. If there
+ *	isn't enough space as is, memory will be reallocated and all
+ *	existing references will be invalidated.
+ *
+ *	@param self Must not be NULL.
+ *	@param additional The minimum number of extra elements that this
+ *					  Vec should be able to push without reallocating.
+ *	@returns LARR_NO_MEMORY if realloc() returns NULL, LARR_OK
+ *			 otherwise.
+ */
+int Vec_reserve(Vec *self, size_t additional);
+
+/** @returns An immutable pointer to this Vec's memory buffer. */
+const void* Vec_as_ptr(const Vec *self);
+
+/** @returns A mutable pointer to this Vec's memory buffer. */
+void* Vec_as_mut_ptr(Vec *self);
+
+/**
+ *	Copies an array of elements to the end of this Vec.
+ *
+ *	If there isn't enough capacity to hold all additional elements,
+ *	memory will be reallocated and all existing references will be
+ *	invalidated.
+ *
+ *	@param self Must not be NULL.
+ *	@param other Must not be NULL. Points to memory spanning
+ *				 len elements of element_size bytes each.
+ *	@param len The number of elements to copy.
+ *	@returns LARR_NO_MEMORY if realloc() returns NULL, LARR_OK
+ *			 otherwise.
+ */
+int Vec_append(Vec *self, const void *other, size_t len);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
