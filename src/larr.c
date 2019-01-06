@@ -244,7 +244,7 @@ int l_Vec_meta_tostring(lua_State *L) {
 
     assert(L);
 
-    tv = (const TypeVec*) check_tv(L, -1);
+    tv = check_tv(L, -1);
 
     if (Vec_is_empty(&tv->vec)) {
         lua_pushliteral(L, "{}");
@@ -274,6 +274,26 @@ int l_Vec_meta_tostring(lua_State *L) {
     return 1;
 }
 
+static int append_vec_or_table(TypeVec *tv, lua_State *L);
+
+static int append_iterator(TypeVec *tv, lua_State *L);
+
+int l_Vec_append(lua_State *L) {
+    TypeVec *tv;
+    int num_args;
+
+    assert(L);
+
+    num_args = lua_gettop(L);
+    tv = check_tv_mut(L, 1);
+
+    if (num_args == 2) {
+        return append_vec_or_table(tv, L);
+    } else {
+        return append_iterator(tv, L);
+    }
+}
+
 int luaopen_liblarr(lua_State *L) {
     static const luaL_Reg funcs[] = {
         { "new", l_Vec_new },
@@ -292,6 +312,7 @@ int luaopen_liblarr(lua_State *L) {
         { "remove", l_Vec_remove },
         { "clear", l_Vec_clear },
         { "__tostring", l_Vec_meta_tostring },
+        { "append", l_Vec_append },
         { NULL, NULL }
     };
 
@@ -305,4 +326,102 @@ int luaopen_liblarr(lua_State *L) {
     lua_setfield(L, -2, "Vec");
 
     return 1;
+}
+
+static int append_vec(TypeVec *tv, TypeVec *other, lua_State *L);
+
+static int append_table(TypeVec *tv, lua_State *L);
+
+static const char *const APPEND_ERR_FMT =
+    "bad argument #2 to 'l_Vec_append' (expected larr.Vec<%s> or table, got %s)";
+
+static int append_vec_or_table(TypeVec *tv, lua_State *L) {
+    TypeVec *maybe_other;
+
+    assert(tv);
+    assert(L);
+
+    maybe_other = test_tv_mut(L, 2);
+
+    if (maybe_other) {
+        return append_vec(tv, maybe_other, L);
+    } else if (lua_istable(L, 2)) {
+        return append_table(tv, L);
+    } else {
+        const char *const self_typename = tv->typeinfo.name.str;
+        const char *const typename = luaL_typename(L, 2);
+
+        return luaL_error(L, APPEND_ERR_FMT, self_typename, typename);
+    }
+}
+
+static int append_iterator(TypeVec *tv, lua_State *L);
+
+static int append_vec(TypeVec *tv, TypeVec *other, lua_State *L) {
+    const Typeinfo *self_type;
+    const Typeinfo *other_type;
+    size_t other_len;
+
+    assert(tv);
+    assert(other);
+    assert(L);
+
+    self_type = &tv->typeinfo;
+    other_type = &other->typeinfo;
+
+    /* type codes must be equal, if unequal */
+    if (self_type->type != other_type->type
+        || (self_type->type == TP_USERDATA
+            && String_cmp(&self_type->name, &other_type->name) != 0)) {
+        return luaL_error(L, APPEND_ERR_FMT, self_type->name.str, other_type->name.str);
+    }
+
+    other_len = Vec_len(&other->vec);
+
+    if (other_len == 0) {
+        return 0;
+    }
+
+    Vec_append(&tv->vec, Vec_as_ptr(&other->vec), other_len);
+    Vec_clear(&other->vec);
+
+    return 0;
+}
+
+static int append_table(TypeVec *tv, lua_State *L) {
+    size_t len;
+    lua_Integer i;
+    int type;
+
+    assert(tv);
+    assert(L);
+
+    len = Vec_len(&tv->vec);
+
+    for (i = 1; (type = lua_rawgeti(L, 2, i)) != LUA_TNIL; ++i) {
+        const char *name;
+        const int res = tv->vtbl->try_push(tv, L);
+
+        if (res != PE_OK) {
+            name = luaL_typename(L, 2);
+            tv->vtbl->truncate(tv, len, L);
+        }
+
+        lua_pop(L, 1);
+
+        if (res == PE_NO_MEMORY) {
+            return luaL_error(L, "out of memory");
+        } else if (res == PE_INVALID_TYPE) {
+            const char *const self_type = tv->typeinfo.name.str;
+
+            return luaL_error(L, "bad table member #%d to 'l_Vec_append' (expected %s, got %s)",
+                              i, self_type, name);
+        }
+    }
+
+    return 0;
+}
+
+static int append_iterator(TypeVec *v, lua_State *L) {
+    return luaL_error(L, "not yet implemented");
 }

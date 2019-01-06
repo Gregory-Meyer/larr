@@ -40,6 +40,8 @@ int l_Vec_clear(lua_State *L);
 
 int l_Vec_meta_tostring(lua_State *L);
 
+int l_Vec_append(lua_State *L);
+
 int luaopen_liblarr(lua_State *L);
 
 #ifdef __cplusplus
